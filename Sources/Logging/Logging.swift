@@ -30,13 +30,17 @@ import Glibc
 public struct Logger {
     @usableFromInline
     var handler: LogHandler
+    public var disabled: Bool
+    
+    
 
     /// An identifier of the creator of this `Logger`.
     public let label: String
 
-    internal init(label: String, _ handler: LogHandler) {
+    internal init(label: String, disabled: Bool = false, _ handler: LogHandler) {
         self.label = label
         self.handler = handler
+        self.disabled = disabled
     }
 }
 
@@ -57,15 +61,23 @@ extension Logger {
     ///    - line: The line this log message originates from (there's usually no need to pass it explicitly as it
     ///            defaults to `#line`).
     @inlinable
-    public func log(level: Logger.Level,
-                    _ message: @autoclosure () -> Logger.Message,
-                    metadata: @autoclosure () -> Logger.Metadata? = nil,
-                    file: String = #file, function: String = #function, line: UInt = #line) {
+    public func log(
+        level: Logger.Level,
+        _ message: @autoclosure () -> Logger.Message,
+        metadata: @autoclosure () -> Logger.Metadata? = nil,
+        file: String = #file, function: String = #function, line: UInt = #line
+    ) {
+        
+        if disabled { return }
+        
         if self.logLevel <= level {
-            self.handler.log(level: level,
-                             message: message(),
-                             metadata: metadata(),
-                             file: file, function: function, line: line)
+            self.handler.log(
+                level: level,
+                message: message(),
+                metadata: metadata(),
+                file: file, function: function, line: line
+            )
+            
         }
     }
 
@@ -361,8 +373,15 @@ extension Logger {
     ///
     /// - parameters:
     ///     - label: An identifier for the creator of a `Logger`.
-    public init(label: String) {
-        self = LoggingSystem.lock.withReaderLock { Logger(label: label, LoggingSystem.factory(label)) }
+    public init(label: String, disabled: Bool = false) {
+        self = LoggingSystem.lock.withReaderLock {
+            Logger(
+                label: label,
+                disabled: disabled,
+                LoggingSystem.factory(label)
+            )
+            
+        }
     }
 
     /// Construct a `Logger` given a `label` identifying the creator of the `Logger` or a non-standard `LogHandler`.
@@ -376,8 +395,8 @@ extension Logger {
     /// - parameters:
     ///     - label: An identifier for the creator of a `Logger`.
     ///     - factory: A closure creating non-standard `LogHandler`s.
-    public init(label: String, factory: (String) -> LogHandler) {
-        self = Logger(label: label, factory(label))
+    public init(label: String, disabled: Bool = false, factory: (String) -> LogHandler) {
+        self = Logger(label: label, disabled: disabled, factory(label))
     }
 }
 
